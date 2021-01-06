@@ -7,3 +7,5 @@
 ##### 1. Across the United States, what types of weather events are most damaging to the health of the population?
 
 ##### 2. Across the United States, what types of weather events have the greatest economic consequences?
+
+[Publication](http://rpubs.com/JavierQuinteroRamirez/709463)
