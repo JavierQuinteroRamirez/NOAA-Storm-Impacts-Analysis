@@ -1,0 +1,183 @@
+---
+title: "NOAA Storm Impacts Analysis"
+author: "Javier Quintero Ramírez"
+date: "30/12/2020"
+output:  
+    html_document:
+    keep_md: true
+---
+
+```{r setup, include=TRUE}
+knitr::opts_chunk$set(echo = TRUE)
+library(dplyr)
+```
+
+## Analysis of the impact of storms on public health and the economy in the United States from 1950 to 2011 
+
+## ¬ Synopsis
+
+#### The basic objective of this analysis is to explore the National Oceanic and Atmospheric Administration (NOAA) storm database and answer two basic questions about severe weather events:
+
+##### 1. Across the United States, what types of weather events are most damaging to the health of the population?
+
+##### 2. Across the United States, what types of weather events have the greatest economic consequences?
+
+#### NOAA's database can be downloaded from [here](https://d396qusza40orc.cloudfront.net/repdata%2Fdata%2FStormData.csv.bz2). It contains information about the severe weather events that occurred between 1950 and 2011 and their relationship to public health and economy of the United States in that time period.
+
+#### For further information, here you can see the National Weather Service Storm Data [Documentation](https://d396qusza40orc.cloudfront.net/repdata%2Fpeer2_doc%2Fpd01016005curr.pdf) and the National Climatic Data Center Storm Events [FAQ](https://d396qusza40orc.cloudfront.net/repdata%2Fpeer2_doc%2FNCDC%20Storm%20Events-FAQ%20Page.pdf).
+
+    
+## ¬ Data Processing    
+    
+#### First, the NOOA's database is downloaded and read it:
+```{r download_unzip_database, cache = TRUE}
+if (!file.exists('./resources/repdata-data-StormData.csv.bz2')) 
+{
+   download.file("http://d396qusza40orc.cloudfront.net/repdata%2Fdata%2FStormData.csv.bz2", 
+                  destfile = "./resources/repdata-data-StormData.csv.bz2")
+}
+
+stormDataBase <- read.csv("./resources/repdata-data-StormData.csv")
+
+```
+
+### Summary
+#### Here we can see a summary and the structure of the data:
+```{r sumary, cache = TRUE}
+str(stormDataBase)
+summary(stormDataBase)
+```
+
+
+#### Here are described the relevant variables for this analysis:
+
+Health-related variables:
+
+    FATALITIES: Number of deaths.
+    INJURIES:   Number of injuries.
+
+Economic-related variables:
+
+    PROPDMG:    Property damaged.
+    PROPDMGEXP: The units for property damage value.
+    CROPDMG:    Crop damaged.
+    CROPDMGEXP: The units for crop damage value.
+
+And these is the number of weather events types found in the NOOA's database:
+    
+```{r evtype1}    
+evtypeList <- unique(toupper(stormDataBase$EVTYPE))
+length(evtypeList)
+```
+
+#### Now we are going to select only the relevants variables:
+```{r select_Data}    
+selectedVariables <- select(stormDataBase,FATALITIES,INJURIES,PROPDMG,PROPDMGEXP,CROPDMG,CROPDMGEXP,EVTYPE)
+head(selectedVariables)
+```
+
+#### As there are many types of climatic events, we will try to unify some of them, which have a certain relationship:
+```{r filter_Type}
+
+selectedVariables$EVTYPE <- gsub('.*SUMMARY*', 'SUMMARY',toupper(selectedVariables$EVTYPE))
+
+selectedVariables$EVTYPE <- gsub('.*DRY.*', 'DROUGHT', toupper(selectedVariables$EVTYPE))
+selectedVariables$EVTYPE <- gsub('.*DROUGHT.*', 'DROUGHT', toupper(selectedVariables$EVTYPE))
+selectedVariables$EVTYPE <- gsub('.*DRIE.*', 'DROUGHT', toupper(selectedVariables$EVTYPE))
+
+selectedVariables$EVTYPE <- gsub('.*COLD.*', 'FROST', toupper(selectedVariables$EVTYPE))
+selectedVariables$EVTYPE <- gsub('.*LOW.*TEMPER.*', 'FROST', toupper(selectedVariables$EVTYPE))
+selectedVariables$EVTYPE <- gsub('.*FROST.*', 'FROST', toupper(selectedVariables$EVTYPE))
+selectedVariables$EVTYPE <- gsub('.*FREEZ.*', 'FROST', toupper(selectedVariables$EVTYPE))
+selectedVariables$EVTYPE <- gsub('.*HAIL.*', 'FROST', toupper(selectedVariables$EVTYPE))
+
+selectedVariables$EVTYPE <- gsub('.*HIGH.*TEMPER.*', 'HEAT WAVES', toupper(selectedVariables$EVTYPE))
+selectedVariables$EVTYPE <- gsub('.*HEAT.*', 'HEAT WAVES', toupper(selectedVariables$EVTYPE))
+selectedVariables$EVTYPE <- gsub('.*WARM.*', 'HEAT WAVES', toupper(selectedVariables$EVTYPE))
+
+selectedVariables$EVTYPE <- gsub('.*HURRICANE.*', 'HURRICANE', toupper(selectedVariables$EVTYPE))
+selectedVariables$EVTYPE <- gsub('.*FIRE.*', 'FIRE', toupper(selectedVariables$EVTYPE))
+selectedVariables$EVTYPE <- gsub('.*FLOOD.*', 'FLOOD', toupper(selectedVariables$EVTYPE))
+selectedVariables$EVTYPE <- gsub('.*TORN.*', 'TORNADO', toupper(selectedVariables$EVTYPE))
+selectedVariables$EVTYPE <- gsub('.*WIND.*', 'WIND', toupper(selectedVariables$EVTYPE))
+selectedVariables$EVTYPE <- gsub('.*RAIN.*', 'RAIN', toupper(selectedVariables$EVTYPE))
+selectedVariables$EVTYPE <- gsub('.*STORM.*', 'STORM', toupper(selectedVariables$EVTYPE))
+selectedVariables$EVTYPE <- gsub('.*SNOW.*', 'SNOW', toupper(selectedVariables$EVTYPE))
+selectedVariables$EVTYPE <- trimws(selectedVariables$EVTYPE)
+
+filteredData <- filter(selectedVariables, EVTYPE != "SUMMARY" && EVTYPE != "?")
+remove(selectedVariables)
+```
+
+```{r evtype12}
+evtypeList2 <- unique(filteredData$EVTYPE)
+l <- length(evtypeList2)
+```
+This leaves us as a result `r l` different types of events
+
+#### Now, since there are different types of units of value for recording damage, we go on to create new variables to standardize the value units in dollars:
+```{r unify_value, warning=FALSE}
+filteredData$VALUEPROPDMG <- filteredData$PROPDMG
+filteredData$VALUEPROPDMG[which(toupper(filteredData$PROPDMGEXP) == "K")] <- filteredData$PROPDMG * 1000 
+filteredData$VALUEPROPDMG[which(toupper(filteredData$PROPDMGEXP) == "M")] <- filteredData$PROPDMG * 1000000
+filteredData$VALUEPROPDMG[which(toupper(filteredData$PROPDMGEXP) == "B")] <- filteredData$PROPDMG * 1000000000
+
+filteredData$VALUECROPDMG <- filteredData$CROPDMG
+filteredData$VALUECROPDMG[which(toupper(filteredData$CROPDMGEXP) == "K")] <- filteredData$CROPDMG * 1000
+filteredData$VALUECROPDMG[which(toupper(filteredData$CROPDMGEXP) == "M")] <- filteredData$CROPDMG * 1000000
+filteredData$VALUECROPDMG[which(toupper(filteredData$CROPDMGEXP) == "B")] <- filteredData$CROPDMG * 1000000000
+
+filteredData$VALUE = filteredData$PROPDMG + filteredData$CROPDMG
+
+unifiedData <- select(filteredData,FATALITIES,INJURIES,VALUE, EVTYPE)
+remove(filteredData)
+head(unifiedData)
+```
+
+## ¬ Results
+### Question 1: 
+#### Across the United States, what types of weather events are most damaging to the health of the population?
+##### We have two measures of health effects: deaths and injuries
+##### Here we can see the response related to Deaths
+```{r questionDeath, message=FALSE}
+library(ggplot2)
+
+unifiedData %>%
+      select(FATALITIES, EVTYPE) %>%
+      group_by(EVTYPE) %>%
+      summarise(sumF = sum(FATALITIES)) %>%
+      top_n( n = 5, wt = sumF) %>%
+      ggplot(aes(y = sumF, x = reorder(x = EVTYPE, X = sumF), fill = EVTYPE)) +
+      geom_bar(stat = "identity") +
+      xlab(label = "Top 5 types of most damaging weather events") +
+      ylab(label = "Number of Deaths") 
+```
+
+##### And here we can see the response related to Injuries
+```{r questionInjuries, message=FALSE}
+unifiedData %>%
+      select(INJURIES, EVTYPE) %>%
+      group_by(EVTYPE) %>%
+      summarise(SumI = sum(INJURIES)) %>%
+      top_n(n = 5, wt = SumI) %>%
+      ggplot(aes(y = SumI, x = reorder(x = EVTYPE, X = SumI), fill = EVTYPE))+
+      geom_bar(stat = "identity") +
+      xlab(label = "Top 5 types of most damaging weather events") +
+      ylab(label = "Number of Injuries Cases")
+```
+
+### Question 2: 
+#### Across the United States, what types of weather events have the greatest economic consequences?
+##### In the following plot we can see which climatic events had the most impact on the United States economy in the period studied:
+```{r questionEconomic}
+unifiedData %>%
+      select(VALUE, EVTYPE) %>%
+      group_by(EVTYPE) %>%
+      summarise(SumV = sum(VALUE)/1000000) %>%
+      top_n(n = 5, wt = SumV) %>%
+      ggplot(aes(y = SumV, x = reorder(x = EVTYPE, X = SumV), fill = EVTYPE)) +
+      scale_color_discrete(name="Weather Events") + 
+      geom_bar(stat = "identity") +
+      xlab(label = "Top 5 types of most expensive weather events") +
+      ylab(label = "Millons of Dollars") 
+```
